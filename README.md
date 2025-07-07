@@ -35,7 +35,7 @@ This project sets up two AWS EC2 instances in a secure VPC configuration:
 
 ## Getting Started
 
-To understand how everything works, start with vm_b_init.sh and vm_a_init.sh—these run on the first startup of each VM. 
+To understand how everything works, start with `vm_b_init.sh` and `vm_a_init.sh` - these run on the first startup of each VM. 
 
 1. Use `Makefile` to spin up AWS infrastructure.
 
