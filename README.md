@@ -28,12 +28,17 @@ This project sets up two AWS EC2 instances in a secure VPC configuration:
 
 ## Prerequisites
 
-- AWS CLI configured with appropriate credentials
+- AWS CLI configured with appropriate credentials ([AWS CLI Authentication Guide](https://docs.aws.amazon.com/cli/latest/userguide/cli-authentication-user.html))
 - AWS session-manager-plugin
 - Terraform
 - Make
 
 ## Getting Started
 
-To understand how everything works, start with vm_b_init.sh and vm_a_init.sh—these run on the first startup of each VM. Alternatively, explore the Makefile to get started.
+To understand how everything works, start with vm_b_init.sh and vm_a_init.sh—these run on the first startup of each VM. 
+
+1. Use Makefile to spin up AWS infrastructure
+2. Connect to VM-A via SSM (AWS Systems Manager)
+3. Use Makefile inside VM-A to curl GO service. Voilà!
+4. Don't forget to spin down AWS infrastructure after you are done
 
