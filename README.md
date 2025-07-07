@@ -37,9 +37,13 @@ This project sets up two AWS EC2 instances in a secure VPC configuration:
 
 To understand how everything works, start with vm_b_init.sh and vm_a_init.sh—these run on the first startup of each VM. 
 
-1. Use Makefile to spin up AWS infrastructure
-🕐 _Note: Please wait ~5 minutes for AWS infrastructure to fully spin up before attempting to connect._
-3. Connect to VM-A via SSM (AWS Systems Manager)
-4. Use Makefile inside VM-A to curl GO service. Voilà!
+1. Use `Makefile` to spin up AWS infrastructure.
+
+   🕐 _Note: Please wait ~5 minutes for the infrastructure to fully spin up before attempting to connect._
+
+2. Connect to **VM-A** via **SSM (AWS Systems Manager)**.
+
+3. Inside **VM-A**, use the `Makefile` located at `/opt/nginx` to curl the Go service
+   
 > ⚠️ Don't forget to spin down AWS infrastructure after you are done!!!
 
