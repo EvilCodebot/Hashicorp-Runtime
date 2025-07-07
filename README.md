@@ -40,5 +40,5 @@ To understand how everything works, start with vm_b_init.sh and vm_a_init.sh—t
 1. Use Makefile to spin up AWS infrastructure
 2. Connect to VM-A via SSM (AWS Systems Manager)
 3. Use Makefile inside VM-A to curl GO service. Voilà!
-4. Don't forget to spin down AWS infrastructure after you are done
+> ⚠️ Don't forget to spin down AWS infrastructure after you are done!!!
 
