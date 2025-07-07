@@ -8,11 +8,6 @@ systemctl enable docker
 # Setup Nginx dirs
 mkdir -p /opt/nginx/certs
 
-# Set default path for all users
-echo 'export PATH=/opt/nginx:$PATH' | sudo tee /etc/profile.d/default_path.sh
-sudo chmod +x /etc/profile.d/default_path.sh
-source /etc/profile.d/default_path.sh
-
 # Get S3 bucket name
 BUCKET_PREFIX="hashicorp-runtime-files-"
 BUCKET_NAME=$(aws s3 ls | grep ${BUCKET_PREFIX} | awk '{print $3}')
