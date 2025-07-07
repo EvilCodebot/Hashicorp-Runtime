@@ -1,0 +1,1 @@
+# Need a way to get the private IP of the VM-A instance

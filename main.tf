@@ -8,11 +8,152 @@ terraform {
       source  = "hashicorp/null"
       version = "~> 3.0"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 
 provider "aws" {
-  region = "ap-southeast-2" # Changed to Sydney region
+  region = "ap-southeast-2" # Sydney region
+}
+
+# Generate the CA private key
+resource "tls_private_key" "ca" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+# Generate the CA certificate
+resource "tls_self_signed_cert" "ca" {
+  private_key_pem = tls_private_key.ca.private_key_pem
+
+  subject {
+    common_name  = "HashiCorp Runtime CA"
+    organization = "HashiCorp Runtime Project"
+  }
+
+  validity_period_hours = 87600 # 10 years
+  is_ca_certificate    = true
+
+  allowed_uses = [
+    "cert_signing",
+    "key_encipherment",
+    "digital_signature"
+  ]
+}
+
+# Store CA certificate in SSM Parameter Store
+resource "aws_ssm_parameter" "ca_cert" {
+  name  = "/tls/ca/certificate"
+  type  = "SecureString"
+  value = tls_self_signed_cert.ca.cert_pem
+}
+
+# Store CA private key in SSM Parameter Store
+resource "aws_ssm_parameter" "ca_key" {
+  name  = "/tls/ca/private-key"
+  type  = "SecureString"
+  value = tls_private_key.ca.private_key_pem
+}
+
+# Generate private key for VM-A
+resource "tls_private_key" "vm_a" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+# Store VM-A private key in SSM Parameter Store
+resource "aws_ssm_parameter" "vm_a_key" {
+  name  = "/tls/vm-a/private-key"
+  type  = "SecureString"
+  value = tls_private_key.vm_a.private_key_pem
+}
+
+# Generate private key for VM-B
+resource "tls_private_key" "vm_b" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+# Store VM-B private key in SSM Parameter Store
+resource "aws_ssm_parameter" "vm_b_key" {
+  name  = "/tls/vm-b/private-key"
+  type  = "SecureString"
+  value = tls_private_key.vm_b.private_key_pem
+}
+
+# Create certificate request for VM-A
+resource "tls_cert_request" "vm_a" {
+  private_key_pem = tls_private_key.vm_a.private_key_pem
+
+  subject {
+    common_name  = "vm-a.internal"
+    organization = "HashiCorp Runtime Project"
+  }
+
+  dns_names = ["vm-a.internal"]
+  ip_addresses = [aws_instance.vm_a.private_ip]
+}
+
+# Sign VM-A certificate with our CA
+resource "tls_locally_signed_cert" "vm_a" {
+  cert_request_pem   = tls_cert_request.vm_a.cert_request_pem
+  ca_private_key_pem = tls_private_key.ca.private_key_pem
+  ca_cert_pem        = tls_self_signed_cert.ca.cert_pem
+
+  validity_period_hours = 8760 # 1 year
+
+  allowed_uses = [
+    "key_encipherment",
+    "digital_signature",
+    "server_auth",
+    "client_auth"
+  ]
+}
+
+# Store VM-A certificate in SSM Parameter Store
+resource "aws_ssm_parameter" "vm_a_cert" {
+  name  = "/tls/vm-a/certificate"
+  type  = "SecureString"
+  value = tls_locally_signed_cert.vm_a.cert_pem
+}
+
+# Create certificate request for VM-B
+resource "tls_cert_request" "vm_b" {
+  private_key_pem = tls_private_key.vm_b.private_key_pem
+
+  subject {
+    common_name  = "vm-b.internal"
+    organization = "HashiCorp Runtime Project"
+  }
+
+  dns_names = ["vm-b.internal"]
+  ip_addresses = [aws_instance.vm_b.private_ip]
+}
+
+# Sign VM-B certificate with our CA
+resource "tls_locally_signed_cert" "vm_b" {
+  cert_request_pem   = tls_cert_request.vm_b.cert_request_pem
+  ca_private_key_pem = tls_private_key.ca.private_key_pem
+  ca_cert_pem        = tls_self_signed_cert.ca.cert_pem
+
+  validity_period_hours = 8760 # 1 year
+
+  allowed_uses = [
+    "key_encipherment",
+    "digital_signature",
+    "server_auth",
+    "client_auth"
+  ]
+}
+
+# Store VM-B certificate in SSM Parameter Store
+resource "aws_ssm_parameter" "vm_b_cert" {
+  name  = "/tls/vm-b/certificate"
+  type  = "SecureString"
+  value = tls_locally_signed_cert.vm_b.cert_pem
 }
 
 # Get latest Amazon Linux 2023 with kernel 6.1
@@ -130,6 +271,7 @@ resource "aws_route_table" "private" {
   tags = {
     Name = "Private Route Table"
   }
+
 }
 
 resource "aws_route_table_association" "private" {
@@ -250,9 +392,9 @@ resource "aws_iam_role_policy_attachment" "ssm_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-# Add S3 bucket access policy
+# Add permissions for VMs to access their certificates and S3 files
 resource "aws_iam_role_policy" "s3_access" {
-  name = "s3-bucket-access"
+  name = "vm_access_policy"
   role = aws_iam_role.ssm_role.name
 
   policy = jsonencode({
@@ -269,6 +411,19 @@ resource "aws_iam_role_policy" "s3_access" {
           "arn:aws:s3:::*",  # For ListAllMyBuckets
           aws_s3_bucket.project_files.arn,
           "${aws_s3_bucket.project_files.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter"
+        ]
+        Resource = [
+          aws_ssm_parameter.ca_cert.arn,
+          aws_ssm_parameter.vm_a_key.arn,
+          aws_ssm_parameter.vm_a_cert.arn,
+          aws_ssm_parameter.vm_b_key.arn,
+          aws_ssm_parameter.vm_b_cert.arn
         ]
       }
     ]
@@ -352,4 +507,5 @@ resource "aws_iam_role_policy" "ec2_describe" {
       }
     ]
   })
+} 
 } 
